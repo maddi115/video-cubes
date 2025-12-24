@@ -36,3 +36,10 @@ export function createTV(position, userInteracted, width=5, height=2) {
     if(userInteracted) video.play();
     return {mesh:tv, video};
 }
+
+// Large TV block (1920x1080 scaled to scene units)
+export function createLargeTV(position, userInteracted) {
+    const width = 19.2;  // scaled width
+    const height = 10.8; // scaled height
+    return createTV(position, userInteracted, width, height);
+}

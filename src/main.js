@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { createCube } from './blocks/cube.js';
-import { createTV } from './blocks/tv.js';
+import { createTV, createLargeTV } from './blocks/tv.js';
 import { createHotbar } from './ui/hotbar.js';
 import { SPEED, GRAVITY } from './constants.js';
 
@@ -83,7 +83,7 @@ document.addEventListener('keyup',(e)=>{
 });
 
 // --- Hotbar UI ---
-const hotbarSlots = ['cube','tv'];
+const hotbarSlots = ['cube','tv','large tv'];
 const hotbar = createHotbar(hotbarSlots);
 
 // --- Blocks ---
@@ -100,7 +100,8 @@ function spawnBlock(type){
     const pos = camera.position.clone().add(dir.multiplyScalar(type==='cube'?2:3));
     let obj;
     if(type==='cube') obj = createCube(pos, userInteracted);
-    else obj = createTV(pos, userInteracted, tvWidth, tvHeight);
+    else if(type==='tv') obj = createTV(pos, userInteracted, tvWidth, tvHeight);
+    else if(type==='large tv') obj = createLargeTV(pos, userInteracted);
     scene.add(obj.mesh);
     blocks.push(obj);
     if(userInteracted) obj.video.play();
