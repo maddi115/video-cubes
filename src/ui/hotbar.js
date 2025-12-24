@@ -1,4 +1,7 @@
 export function createHotbar(hotbarSlots) {
+    // ensure 'large-tv' is included
+    if(!hotbarSlots.includes('large-tv')) hotbarSlots.push('large-tv');
+
     let selectedIndex = 0;
     const canvas = document.createElement('canvas');
     canvas.width = window.innerWidth;
@@ -22,7 +25,8 @@ export function createHotbar(hotbarSlots) {
             ctx.fillRect(startX+i*slotWidth+5,15,slotWidth-10,30);
             ctx.fillStyle='black';
             ctx.font='14px monospace';
-            ctx.fillText(item.toUpperCase(), startX+i*slotWidth+15, 37);
+            const label = item==='large-tv'?'L-TV':item.toUpperCase();
+            ctx.fillText(label, startX+i*slotWidth+15, 37);
         });
     }
     draw();
