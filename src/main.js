@@ -4,12 +4,11 @@ import { createCube } from './blocks/cube.js';
 import { createTV, createLargeTV } from './blocks/tv.js';
 import { createHotbar } from './ui/hotbar.js';
 import { SPEED, GRAVITY } from './constants.js';
-import { setupNight } from './environment/night.js';
-import { createGround } from './environment/ground.js';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
-setupNight(scene);
+scene.background = new THREE.Color(0x0a0a1a); // Night sky
+scene.fog = new THREE.Fog(0x0a0a1a, 5, 50);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(0,2,5);
@@ -19,8 +18,19 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// Add ground
-const ground = createGround();
+// Lights
+const ambient = new THREE.AmbientLight(0x5555ff, 0.5); // dim bluish
+const hemi = new THREE.HemisphereLight(0x000044, 0x111111, 0.8);
+const sun = new THREE.DirectionalLight(0x6666ff,1.0);
+sun.position.set(10,15,10);
+scene.add(ambient, hemi, sun);
+
+// Ground
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(50,50),
+    new THREE.MeshStandardMaterial({color:0x223322, emissive:0x111111})
+);
+ground.rotation.x = -Math.PI/2;
 scene.add(ground);
 
 // --- Torch helper ---
@@ -39,7 +49,7 @@ function addTorch(position){
     return torchLight;
 }
 
-// Place torches
+// Place some torches
 const torches = [
     addTorch(new THREE.Vector3(2,1,2)),
     addTorch(new THREE.Vector3(-2,1,-2)),
@@ -53,9 +63,7 @@ document.body.addEventListener('click',()=>controls.lock());
 const move = {forward:false,backward:false,left:false,right:false};
 const velocity = {x:0,y:0,z:0};
 let canJump = false;
-let sprinting = false;
 
-// Key events
 document.addEventListener('keydown',(e)=>{
     switch(e.code){
         case 'KeyW': move.forward=true; break;
@@ -63,7 +71,6 @@ document.addEventListener('keydown',(e)=>{
         case 'KeyA': move.left=true; break;
         case 'KeyD': move.right=true; break;
         case 'Space': if(canJump){velocity.y=5; canJump=false;} break;
-        case 'ShiftLeft': case 'ShiftRight': sprinting=true; break;
     }
 });
 document.addEventListener('keyup',(e)=>{
@@ -72,7 +79,6 @@ document.addEventListener('keyup',(e)=>{
         case 'KeyS': move.backward=false; break;
         case 'KeyA': move.left=false; break;
         case 'KeyD': move.right=false; break;
-        case 'ShiftLeft': case 'ShiftRight': sprinting=false; break;
     }
 });
 
@@ -83,6 +89,8 @@ const hotbar = createHotbar(hotbarSlots);
 // --- Blocks ---
 const blocks = [];
 let userInteracted = false;
+
+// Default TV dimensions
 let tvWidth = 5;
 let tvHeight = 2;
 
@@ -93,13 +101,15 @@ function spawnBlock(type){
     let obj;
     if(type==='cube') obj = createCube(pos, userInteracted);
     else if(type==='tv') obj = createTV(pos, userInteracted, tvWidth, tvHeight);
-    else if(type==='large tv') obj = createLargeTV(pos, userInteracted);
+    else obj = createLargeTV(pos, userInteracted);
+    
     scene.add(obj.mesh);
+    scene.add(obj.light); // add light to scene
     blocks.push(obj);
     if(userInteracted) obj.video.play();
 }
 
-// Mouse click
+// Mouse click spawns block
 window.addEventListener('click',()=>{
     if(!controls.isLocked) return;
     spawnBlock(hotbarSlots[hotbar.getSelected()]);
@@ -109,7 +119,7 @@ window.addEventListener('click',()=>{
     }
 });
 
-// Adjust TV size
+// Adjust TV size with keys
 window.addEventListener('keydown',(e)=>{
     if(e.code==='ArrowUp') tvHeight += 0.5;
     if(e.code==='ArrowDown') tvHeight = Math.max(0.5, tvHeight - 0.5);
@@ -144,32 +154,47 @@ function animate(){
         dir.x = Number(move.right) - Number(move.left);
         dir.z = Number(move.forward) - Number(move.backward);
         dir.normalize();
-
-        const speedMultiplier = sprinting ? 2 : 1;
-        controls.moveRight(dir.x * SPEED * speedMultiplier * delta);
-        controls.moveForward(dir.z * SPEED * speedMultiplier * delta);
+        controls.moveRight(dir.x * SPEED * delta);
+        controls.moveForward(dir.z * SPEED * delta);
 
         velocity.y -= GRAVITY * delta;
         camera.position.y += velocity.y * delta;
         if(camera.position.y < 2){velocity.y = 0; camera.position.y = 2; canJump = true;}
     }
 
-    // Torch flicker
+    // Torch flicker effect
     const time = Date.now() * 0.002;
     torches.forEach(t => t.intensity = 0.8 + Math.sin(time + t.position.x + t.position.z)*0.2);
+
+    // Update video lights
+    blocks.forEach(b=>{
+        if(b.video && b.light){
+            const canvas = document.createElement('canvas');
+            canvas.width = 16; canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(b.video,0,0,16,16);
+            const data = ctx.getImageData(0,0,16,16).data;
+            let r=0,g=0,bv=0,count=0;
+            for(let i=0;i<data.length;i+=4){ r+=data[i]; g+=data[i+1]; bv+=data[i+2]; count++; }
+            const avgR = r/count/255; const avgG = g/count/255; const avgB = bv/count/255;
+            b.light.color.setRGB(avgR, avgG, avgB);
+            const brightness = (avgR + avgG + avgB)/3;
+            b.light.intensity = 2 + brightness*2;
+        }
+    });
 
     hotbar.draw();
     renderer.render(scene, camera);
 }
 animate();
 
-// Window resize
+// --- Window resize ---
 window.addEventListener('resize',()=>{
     camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Disable scroll
+// --- Disable browser scroll ---
 document.body.style.overflow = 'hidden';
 document.documentElement.style.overflow = 'hidden';
